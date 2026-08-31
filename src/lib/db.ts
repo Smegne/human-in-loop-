@@ -2,7 +2,7 @@ import { PrismaClient } from '../generated/prisma';
 import mariadb from 'mariadb';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const connectionString = process.env.DATABASE_URL!.replace('mysql://', 'mariadb://');
+const connectionString = (process.env.DATABASE_URL || 'mysql://user:pass@localhost:3306/db').replace('mysql://', 'mariadb://');
 const pool = mariadb.createPool(connectionString);
 const adapter = new PrismaMariaDb(pool as any);
 
