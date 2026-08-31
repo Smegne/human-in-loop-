@@ -61,4 +61,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   secret: process.env.AUTH_SECRET || "fallback-secret-for-testing-1234567890",
   trustHost: true,
+  debug: true,
 });
