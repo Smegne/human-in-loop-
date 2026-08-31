@@ -12,6 +12,7 @@ export async function authenticate(
     await signIn("credentials", { ...data, redirectTo: "/admin" });
   } catch (error) {
     if (error instanceof AuthError) {
+      console.error("AuthError caught in authenticate:", error.type, error.message);
       switch (error.type) {
         case "CredentialsSignin":
           return "Invalid credentials.";
@@ -19,6 +20,15 @@ export async function authenticate(
           return "Something went wrong.";
       }
     }
+    
+    // In Next.js, signIn() throws a NEXT_REDIRECT error on success.
+    // If the error message includes NEXT_REDIRECT, it means login was successful.
+    if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
+      console.log("Login action redirecting...");
+    } else {
+      console.error("Unexpected error in authenticate:", error);
+    }
+    
     throw error;
   }
 }
