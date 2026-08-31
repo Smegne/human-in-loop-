@@ -13,12 +13,9 @@ export async function authenticate(
   } catch (error) {
     if (error instanceof AuthError) {
       console.error("AuthError caught in authenticate:", error.type, error.message);
-      switch (error.type) {
-        case "CredentialsSignin":
-          return "Invalid credentials.";
-        default:
-          return "Something went wrong.";
-      }
+      
+      // Return the detailed error message for debugging on the frontend
+      return `AuthError (${error.type}): ${error.cause?.err?.message || error.message || "Unknown error"}`;
     }
     
     // In Next.js, signIn() throws a NEXT_REDIRECT error on success.
@@ -27,6 +24,9 @@ export async function authenticate(
       console.log("Login action redirecting...");
     } else {
       console.error("Unexpected error in authenticate:", error);
+      if (error instanceof Error) {
+        return `Unexpected Error: ${error.message}`;
+      }
     }
     
     throw error;
