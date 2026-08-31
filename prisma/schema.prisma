@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum SessionStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // Hashed
+  role      Role
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions  MonitoringSession[] @relation("AdminSessions")
+  employeeProfile EmployeeProfile?
+}
+
+model EmployeeProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  status    String   // Using String instead of Enum for SQLite
+  sessions  MonitoringSession[] @relation("EmployeeSessions")
+}
+
+model MonitoringSession {
+  id              String   @id @default(cuid())
+  adminId         String
+  admin           User     @relation("AdminSessions", fields: [adminId], references: [id])
+  employeeId      String
+  employee        EmployeeProfile @relation("EmployeeSessions", fields: [employeeId], references: [id])
+  secureToken     String   @unique
+  durationMinutes Int
+  isRecording     Boolean
+  status          SessionStatus
+  startedAt       DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  recording       Recording?
+  report          Report?
+}
+
+model Recording {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  session     MonitoringSession @relation(fields: [sessionId], references: [id])
+  storageUrl  String
+  fileSize    Int?
+  mimeType    String
+  duration    Int?     // in seconds
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  session     MonitoringSession @relation(fields: [sessionId], references: [id])
+  details     String   // JSON string
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  targetId    String?
+  metadata    String?  // JSON string
+  timestamp   DateTime @default(now())
+}
+
+model SignalingMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  sender      String   // 'ADMIN' or 'EMPLOYEE'
+  type        String   // 'offer', 'answer', 'ice-candidate'
+  payload     String   @db.Text // JSON string containing SDP or ICE candidate
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}
