@@ -59,5 +59,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
+  secret: process.env.AUTH_SECRET || "fallback-secret-for-testing-1234567890",
   trustHost: true,
 });
