@@ -8,11 +8,12 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isOnLogin = nextUrl.pathname.startsWith("/login");
-      const isPublicPath = nextUrl.pathname === "/"; // Add other public paths if needed
+      const isOnSignup = nextUrl.pathname.startsWith("/signup");
+      const isPublicPath = nextUrl.pathname === "/" || isOnSignup;
 
-      if (isOnLogin) {
+      if (isOnLogin || isOnSignup) {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/dashboard", nextUrl)); // Redirect to dashboard if already logged in
+          return Response.redirect(new URL("/admin", nextUrl));
         }
         return true;
       }
