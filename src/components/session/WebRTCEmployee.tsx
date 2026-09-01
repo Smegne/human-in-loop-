@@ -1,39 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Activity, CheckCircle, VideoOff, Camera, Monitor } from 'lucide-react';
+import { Activity, CheckCircle, VideoOff, Monitor } from 'lucide-react';
 
 interface WebRTCEmployeeProps {
   sessionId: string;
 }
 
-/** Returns true if getDisplayMedia (screen share) is available. */
-function isScreenShareSupported(): boolean {
-  return (
-    typeof navigator !== 'undefined' &&
-    !!navigator.mediaDevices &&
-    typeof navigator.mediaDevices.getDisplayMedia === 'function'
-  );
-}
-
-/** Returns true if getUserMedia (camera) is available. */
-function isCameraSupported(): boolean {
-  return (
-    typeof navigator !== 'undefined' &&
-    !!navigator.mediaDevices &&
-    typeof navigator.mediaDevices.getUserMedia === 'function'
-  );
-}
-
 export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
   const [status, setStatus] = useState<string>('Starting...');
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'screen' | 'camera' | null>(null);
+  const [connected, setConnected] = useState(false);
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,34 +22,24 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
 
     const initWebRTC = async () => {
       try {
-        let stream: MediaStream;
-        let captureMode: 'screen' | 'camera';
-
-        // ── Choose capture method ────────────────────────────────────────────
-        if (isScreenShareSupported()) {
-          // Desktop or Android Chrome: use screen share
-          captureMode = 'screen';
-          setMode('screen');
-          setStatus('Requesting screen permission...');
-          stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { frameRate: { ideal: 15, max: 30 } },
-            audio: false,
-          });
-        } else if (isCameraSupported()) {
-          // iOS / unsupported browser: fall back to camera
-          captureMode = 'camera';
-          setMode('camera');
-          setStatus('Requesting camera permission...');
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false,
-          });
-        } else {
+        // ── Check screen share support ───────────────────────────────────────
+        if (
+          typeof navigator === 'undefined' ||
+          !navigator.mediaDevices ||
+          typeof navigator.mediaDevices.getDisplayMedia !== 'function'
+        ) {
           throw new Error(
-            'Your browser does not support screen sharing or camera access. ' +
-            'Please use Chrome or Firefox on a desktop computer.'
+            'Screen sharing is not supported on this browser or device. ' +
+            'Please use Chrome or Firefox on a desktop computer, or Chrome on Android.'
           );
         }
+
+        // ── Get screen stream ────────────────────────────────────────────────
+        setStatus('Requesting screen permission...');
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 15, max: 30 } },
+          audio: false,
+        });
 
         if (!isMounted) {
           stream.getTracks().forEach((t) => t.stop());
@@ -77,17 +48,11 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
 
         streamRef.current = stream;
 
-        // Show local preview
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-
-        // Listen for user stopping the stream via browser UI
         stream.getVideoTracks()[0].onended = () => {
-          if (isMounted) setStatus('Stream stopped by user.');
+          if (isMounted) setStatus('Screen sharing stopped by user.');
         };
 
-        // ── Peer Connection ──────────────────────────────────────────────────
+        // ── Peer connection ──────────────────────────────────────────────────
         const pc = new RTCPeerConnection({
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -98,7 +63,6 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
 
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-        // ── ICE candidates ───────────────────────────────────────────────────
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             await fetch('/api/signaling', {
@@ -132,7 +96,7 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
 
         setStatus('Waiting for admin to connect...');
 
-        // ── Poll for answer / ICE / control messages ─────────────────────────
+        // ── Poll for answer / control messages ───────────────────────────────
         pollingIntervalRef.current = setInterval(async () => {
           try {
             let url = `/api/signaling?sessionId=${sessionId}&sender=EMPLOYEE`;
@@ -148,16 +112,15 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
               if (msg.type === 'answer') {
                 const answer = JSON.parse(msg.payload);
                 await pc.setRemoteDescription(new RTCSessionDescription(answer));
-                setStatus(
-                  captureMode === 'screen'
-                    ? 'Connected — streaming your screen.'
-                    : 'Connected — streaming your camera.'
-                );
+                if (isMounted) {
+                  setStatus('Connected — streaming your screen securely.');
+                  setConnected(true);
+                }
               } else if (msg.type === 'ice-candidate') {
                 const candidate = JSON.parse(msg.payload);
                 await pc.addIceCandidate(new RTCIceCandidate(candidate));
               } else if (msg.type === 'stop-session' && msg.sender === 'ADMIN') {
-                setStatus('Session ended by the administrator.');
+                if (isMounted) setStatus('Session ended by the administrator.');
                 streamRef.current?.getTracks().forEach((t) => t.stop());
                 peerConnectionRef.current?.close();
                 if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
@@ -170,7 +133,7 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
       } catch (err: unknown) {
         console.error('WebRTC error:', err);
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to start session.');
+          setError(err instanceof Error ? err.message : 'Failed to start screen share.');
         }
       }
     };
@@ -185,64 +148,47 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
     };
   }, [sessionId]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Error state (includes unsupported browser/device) ─────────────────────
   if (error) {
+    const isUnsupported = error.includes('not supported');
     return (
-      <div className="rounded-lg bg-red-50 p-6 border border-red-200 text-center animate-in fade-in mt-6">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
-          <VideoOff className="h-6 w-6 text-red-600" />
+      <div className={`rounded-lg p-6 border text-center animate-in fade-in mt-6 ${isUnsupported ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+        <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full mb-4 ${isUnsupported ? 'bg-yellow-100' : 'bg-red-100'}`}>
+          {isUnsupported
+            ? <Monitor className="h-7 w-7 text-yellow-600" />
+            : <VideoOff className="h-6 w-6 text-red-600" />
+          }
         </div>
-        <h3 className="text-lg font-bold text-red-900 mb-2">Connection Error</h3>
-        <p className="text-sm text-red-700">{error}</p>
+        <h3 className={`text-lg font-bold mb-2 ${isUnsupported ? 'text-yellow-900' : 'text-red-900'}`}>
+          {isUnsupported ? 'Screen Sharing Not Supported' : 'Connection Error'}
+        </h3>
+        <p className={`text-sm max-w-sm mx-auto ${isUnsupported ? 'text-yellow-800' : 'text-red-700'}`}>
+          {error}
+        </p>
+        {isUnsupported && (
+          <div className="mt-4 text-xs text-yellow-700 space-y-1">
+            <p>✅ Works on: <strong>Chrome / Edge / Firefox</strong> on Windows, Mac, Linux</p>
+            <p>✅ Works on: <strong>Chrome</strong> on Android</p>
+            <p>❌ Not supported on: <strong>iOS Safari / iPhone / iPad</strong></p>
+          </div>
+        )}
       </div>
     );
   }
 
-  const isConnected =
-    status.startsWith('Connected');
-
+  // ── Normal state ────────────────────────────────────────────────────────────
   return (
-    <div className="rounded-lg bg-green-50 p-6 border border-green-200 text-center animate-in fade-in mt-6 space-y-4">
-      {/* Mode badge */}
-      {mode && (
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 shadow-sm">
-          {mode === 'screen' ? (
-            <><Monitor className="h-3.5 w-3.5" /> Screen sharing</>
-          ) : (
-            <><Camera className="h-3.5 w-3.5" /> Camera (mobile fallback)</>
-          )}
-        </div>
-      )}
-
-      {/* Status icon */}
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-        {isConnected ? (
-          <CheckCircle className="h-6 w-6 text-green-600" />
-        ) : (
-          <Activity className="h-6 w-6 text-green-600 animate-pulse" />
-        )}
+    <div className="rounded-lg bg-green-50 p-6 border border-green-200 text-center animate-in fade-in mt-6">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
+        {connected
+          ? <CheckCircle className="h-6 w-6 text-green-600" />
+          : <Activity className="h-6 w-6 text-green-600 animate-pulse" />
+        }
       </div>
-
-      <div>
-        <h3 className="text-lg font-bold text-green-900 mb-1">Live Session</h3>
-        <p className="text-sm text-green-700">{status}</p>
-      </div>
-
-      {/* Local camera preview (mobile only) */}
-      {mode === 'camera' && (
-        <div className="mt-2">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="mx-auto rounded-lg w-full max-w-xs border border-green-200 shadow-sm"
-          />
-          <p className="text-xs text-gray-500 mt-2">
-            📱 Your camera is being shared. For screen sharing, open this link on a desktop computer.
-          </p>
-        </div>
-      )}
+      <h3 className="text-lg font-bold text-green-900 mb-1">
+        {connected ? 'Live Session Active' : 'Live Session'}
+      </h3>
+      <p className="text-sm text-green-700">{status}</p>
     </div>
   );
 }
