@@ -78,9 +78,16 @@ export async function signup(
       });
     }
   } catch (err) {
-    console.error("Signup error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Signup error:", message);
     return {
-      errors: { general: ["Something went wrong. Please try again."] },
+      errors: {
+        general: [
+          process.env.NODE_ENV === "development"
+            ? `Error: ${message}`
+            : `Something went wrong: ${message}`,
+        ],
+      },
     };
   }
 
