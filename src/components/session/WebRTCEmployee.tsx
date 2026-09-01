@@ -37,7 +37,10 @@ export default function WebRTCEmployee({ sessionId }: WebRTCEmployeeProps) {
         // ── Get screen stream ────────────────────────────────────────────────
         setStatus('Requesting screen permission...');
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: 15, max: 30 } },
+          video: { 
+            displaySurface: 'monitor',
+            frameRate: { ideal: 15, max: 30 } 
+          },
           audio: false,
         });
 
