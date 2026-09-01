@@ -1,6 +1,12 @@
 import LoginForm from "./LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ registered?: string }>;
+}) {
+  const { registered } = await searchParams;
+
   return (
     <div className="flex min-h-screen flex-1 flex-col justify-center px-6 py-12 lg:px-8 bg-gray-50">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
@@ -17,6 +23,11 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+        {registered === "true" && (
+          <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+            🎉 Account created successfully! Sign in to get started.
+          </div>
+        )}
         <div className="bg-white px-6 py-12 shadow sm:rounded-lg sm:px-12">
           <LoginForm />
         </div>
@@ -24,3 +35,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

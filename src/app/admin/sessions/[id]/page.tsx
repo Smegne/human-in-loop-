@@ -3,14 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import WebRTCAdmin from '@/components/admin/WebRTCAdmin';
 
-export default async function AdminLiveSessionPage({ params }: { params: { id: string } }) {
+export default async function AdminLiveSessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const sessionUser = await auth();
   if (!sessionUser || sessionUser.user?.role !== 'ADMIN') {
     return redirect('/login');
   }
 
   const session = await db.monitoringSession.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       employee: { include: { user: true } }
     }
