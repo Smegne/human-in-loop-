@@ -4,6 +4,19 @@ import { db } from '@/lib/db';
 import { auth } from '@/auth';
 import { randomBytes } from 'crypto';
 import { logAuditAction } from '@/lib/audit';
+import { headers } from 'next/headers';
+
+/** Always returns the correct origin for the current environment. */
+async function getBaseUrl(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  }
+  // Derive from the incoming request host (works on Vercel, localhost, custom domains)
+  const headersList = await headers();
+  const host = headersList.get('host') ?? 'localhost:3000';
+  const proto = host.startsWith('localhost') ? 'http' : 'https';
+  return `${proto}://${host}`;
+}
 
 export async function createMonitoringSession(employeeId: string, durationMinutes: number = 60) {
   const session = await auth();
@@ -51,7 +64,7 @@ export async function createMonitoringSession(employeeId: string, durationMinute
   });
 
   // Construct the full URL
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const baseUrl = await getBaseUrl();
   const sessionUrl = `${baseUrl}/session/${secureToken}`;
 
   return {
@@ -112,7 +125,7 @@ export async function createExternalSession() {
   });
 
   // Construct the full URL
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const baseUrl = await getBaseUrl();
   const sessionUrl = `${baseUrl}/session/${secureToken}`;
 
   return { success: true, url: sessionUrl };
