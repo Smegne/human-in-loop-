@@ -6,18 +6,31 @@ import { Activity } from 'lucide-react';
 export default async function SessionConsentPage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
-  const { token } = params;
+  const { token } = await params;
 
-  // Fetch the session
-  const session = await db.monitoringSession.findUnique({
-    where: { secureToken: token },
-    include: {
-      admin: true,
-      employee: { include: { user: true } },
-    },
-  });
+  let session;
+  try {
+    session = await db.monitoringSession.findUnique({
+      where: { secureToken: token },
+      include: {
+        admin: true,
+        employee: { include: { user: true } },
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Session page DB error:', msg);
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md rounded-xl bg-white p-8 text-center shadow-lg border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 text-sm">{msg}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return notFound();

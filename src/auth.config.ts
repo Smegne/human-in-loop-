@@ -9,7 +9,8 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isOnLogin = nextUrl.pathname.startsWith("/login");
       const isOnSignup = nextUrl.pathname.startsWith("/signup");
-      const isPublicPath = nextUrl.pathname === "/" || isOnSignup;
+      const isOnSession = nextUrl.pathname.startsWith("/session");
+      const isPublicPath = nextUrl.pathname === "/" || isOnSignup || isOnSession;
 
       if (isOnLogin || isOnSignup) {
         if (isLoggedIn) {
