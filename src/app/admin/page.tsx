@@ -1,13 +1,19 @@
 import StatCard from '@/components/admin/StatCard';
 import { Users, Video, Clock, CheckCircle } from 'lucide-react';
 import { db } from '@/lib/db';
+import { Prisma } from '@/generated/prisma';
+
+type SessionWithEmployee = Prisma.MonitoringSessionGetPayload<{
+  include: { employee: { include: { user: true } } };
+}>;
 
 export default async function AdminDashboard() {
   let employeeCount = 0;
   let activeSessions = 0;
   let completedSessions = 0;
-  let recentSessions: Awaited<ReturnType<typeof db.monitoringSession.findMany>> = [];
+  let recentSessions: SessionWithEmployee[] = [];
   let dbError: string | null = null;
+
 
   try {
     [employeeCount, activeSessions, completedSessions, recentSessions] = await Promise.all([
