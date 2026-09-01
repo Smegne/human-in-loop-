@@ -3,24 +3,41 @@ import { Users, Video, Clock, CheckCircle } from 'lucide-react';
 import { db } from '@/lib/db';
 
 export default async function AdminDashboard() {
-  // Fetch some basic stats from the database
-  const employeeCount = await db.user.count({ where: { role: 'EMPLOYEE' } });
-  const activeSessions = await db.monitoringSession.count({ where: { status: 'ACTIVE' } });
-  const completedSessions = await db.monitoringSession.count({ where: { status: 'COMPLETED' } });
-  
-  // Recent sessions
-  const recentSessions = await db.monitoringSession.findMany({
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-    include: { employee: { include: { user: true } } },
-  });
+  let employeeCount = 0;
+  let activeSessions = 0;
+  let completedSessions = 0;
+  let recentSessions: Awaited<ReturnType<typeof db.monitoringSession.findMany>> = [];
+  let dbError: string | null = null;
+
+  try {
+    [employeeCount, activeSessions, completedSessions, recentSessions] = await Promise.all([
+      db.user.count({ where: { role: 'EMPLOYEE' } }),
+      db.monitoringSession.count({ where: { status: { in: ['ACTIVE', 'PENDING'] } } }),
+      db.monitoringSession.count({ where: { status: 'COMPLETED' } }),
+      db.monitoringSession.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { employee: { include: { user: true } } },
+      }),
+    ]);
+  } catch (err) {
+    dbError = err instanceof Error ? err.message : String(err);
+    console.error('Admin dashboard DB error:', dbError);
+  }
+
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Dashboard Overview</h2>
-        <p className="text-gray-500">Welcome back. Here is what's happening today.</p>
+        <p className="text-gray-500">Welcome back. Here is what&apos;s happening today.</p>
       </div>
+
+      {dbError && (
+        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          <strong>Database error:</strong> {dbError}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
